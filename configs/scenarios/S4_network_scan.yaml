@@ -1,0 +1,28 @@
+
+scenario_id: S4_network_scan
+workload:
+  num_requests: 80
+  prompt_tokens_dist: {512: 1.0}
+  max_new_tokens_dist: {256: 1.0}
+  kv_bytes_per_token: 8192
+nodes:
+  prefillX:
+    gpu: {name: L40S_48GB, vram_total_gb: 48, vram_free_gb: 36}
+    tags: {tier: edge, role: prefill}
+  decodeX:
+    gpu: {name: L40S_48GB, vram_total_gb: 48, vram_free_gb: 30}
+    running_decode: 4
+    queued_decode: 2
+    tags: {tier: edge, role: decode}
+  decodeY:
+    gpu: {name: A100_80GB, vram_total_gb: 80, vram_free_gb: 55}
+    running_decode: 2
+    queued_decode: 1
+    tags: {tier: cloud, role: decode}
+network:
+  links:
+    # low_bw_high_rtt is approximated by these links; you can edit and re-run sweeps
+    - {src: prefillX, dst: decodeX, bandwidth_Gbps: 25, rtt_ms: 2}
+    - {src: prefillX, dst: decodeY, bandwidth_Gbps: 2, rtt_ms: 30}
+    - {src: decodeX, dst: decodeY, bandwidth_Gbps: 2, rtt_ms: 30}
+    - {src: decodeY, dst: decodeX, bandwidth_Gbps: 2, rtt_ms: 30}

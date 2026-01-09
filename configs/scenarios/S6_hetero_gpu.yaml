@@ -1,0 +1,27 @@
+
+scenario_id: S6_hetero_gpu
+workload:
+  num_requests: 80
+  prompt_tokens_dist: {256: 0.5, 512: 0.5}
+  max_new_tokens_dist: {128: 0.5, 256: 0.5}
+  kv_bytes_per_token: 4096
+nodes:
+  prefillG:
+    gpu: {name: A100_80GB, vram_total_gb: 80, vram_free_gb: 60}
+    tags: {tier: cloud, role: prefill}
+  decodeFast:
+    gpu: {name: A100_80GB, vram_total_gb: 80, vram_free_gb: 55}
+    running_decode: 4
+    queued_decode: 2
+    tags: {tier: cloud, role: decode}
+  decodeSlow:
+    gpu: {name: L40S_48GB, vram_total_gb: 48, vram_free_gb: 32}
+    running_decode: 4
+    queued_decode: 2
+    tags: {tier: cloud, role: decode}
+network:
+  links:
+    - {src: prefillG, dst: decodeFast, bandwidth_Gbps: 50, rtt_ms: 0.4}
+    - {src: prefillG, dst: decodeSlow, bandwidth_Gbps: 50, rtt_ms: 0.4}
+    - {src: decodeFast, dst: decodeSlow, bandwidth_Gbps: 25, rtt_ms: 0.6}
+    - {src: decodeSlow, dst: decodeFast, bandwidth_Gbps: 25, rtt_ms: 0.6}

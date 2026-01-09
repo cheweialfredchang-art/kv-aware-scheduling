@@ -6,11 +6,32 @@ from ...models.network import NetworkModel
 from .scoring import ScoreWeights, mem_pressure
 from .policies import KVSwitchPolicy
 
+def _coerce_weights(w):
+    from .scoring import ScoreWeights
+    if w is None:
+        return ScoreWeights()
+    if isinstance(w, ScoreWeights):
+        return w
+    if isinstance(w, dict):
+        return ScoreWeights(**w)
+    return ScoreWeights()
+
+def _coerce_policy(p):
+    from .policies import KVSwitchPolicy
+    if p is None:
+        return KVSwitchPolicy()
+    if isinstance(p, KVSwitchPolicy):
+        return p
+    if isinstance(p, dict):
+        return KVSwitchPolicy(**p)
+    return KVSwitchPolicy()
+
 class KVAwareHeuristic(Scheduler):
-    def __init__(self, net: Optional[NetworkModel] = None, weights: ScoreWeights | None = None, policy: KVSwitchPolicy | None = None):
+
+    def __init__(self, net: Optional[NetworkModel] = None, weights: ScoreWeights | dict | None = None, policy: KVSwitchPolicy | dict | None = None):
         self.net = net
-        self.weights = weights or ScoreWeights()
-        self.policy = policy or KVSwitchPolicy()
+        self.weights = _coerce_weights(weights)
+        self.policy = _coerce_policy(policy)
 
     def decide(self, tick: int, req: InferenceRequest, nodes: Dict[str, object]) -> SchedulingDecision:
         src = req.kv.owner_node_id
@@ -33,7 +54,8 @@ class KVAwareHeuristic(Scheduler):
             if best_score is None or score < best_score:
                 best_score = score
                 best_k = k
-                best_prefetch = (src != k and self.policy.enable_prefetch)
+                h = getattr(self.policy, "prefetch_horizon_tokens", 0) or 0
+                best_prefetch = (src != k and self.policy.enable_prefetch and req.profile.max_new_tokens >= h)
 
         assert best_k is not None
         return SchedulingDecision(tick=tick, request_id=req.request_id, src_node_id=src, dst_node_id=best_k,

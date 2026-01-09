@@ -1,0 +1,27 @@
+
+scenario_id: S5_hysteresis_horizon
+workload:
+  num_requests: 80
+  prompt_tokens_dist: {256: 0.4, 512: 0.6}
+  max_new_tokens_dist: {128: 0.5, 256: 0.5}
+  kv_bytes_per_token: 4096
+nodes:
+  prefillH:
+    gpu: {name: A100_80GB, vram_total_gb: 80, vram_free_gb: 60}
+    tags: {tier: cloud, role: prefill}
+  decodeH1:
+    gpu: {name: A100_80GB, vram_total_gb: 80, vram_free_gb: 55}
+    running_decode: 5
+    queued_decode: 3
+    tags: {tier: cloud, role: decode}
+  decodeH2:
+    gpu: {name: L40S_48GB, vram_total_gb: 48, vram_free_gb: 32}
+    running_decode: 5
+    queued_decode: 3
+    tags: {tier: cloud, role: decode}
+network:
+  links:
+    - {src: prefillH, dst: decodeH1, bandwidth_Gbps: 50, rtt_ms: 0.4}
+    - {src: prefillH, dst: decodeH2, bandwidth_Gbps: 50, rtt_ms: 0.4}
+    - {src: decodeH1, dst: decodeH2, bandwidth_Gbps: 10, rtt_ms: 1.0}
+    - {src: decodeH2, dst: decodeH1, bandwidth_Gbps: 10, rtt_ms: 1.0}

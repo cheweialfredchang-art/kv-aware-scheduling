@@ -68,3 +68,31 @@ python -m kvsched.cli compare-modes --relaxed results/relaxed/index.csv --strict
 ## Changelog
 
 - v9: Remove pandas FutureWarning by avoiding to_numeric(errors='ignore') in plotting utilities.
+
+
+## Topology table generation
+
+```bash
+python -m kvsched.cli topology-table --scenarios configs/scenarios/ --out results/topology.md --format md --require-bidirectional
+```
+LaTeX output:
+```bash
+python -m kvsched.cli topology-table --scenarios configs/scenarios/ --out results/topology_tables.tex --format latex --require-bidirectional
+```
+
+
+## Experiment suite (S1–S6)
+
+Run the full experiment suite:
+```bash
+python -m kvsched.cli suite --suite configs/experiments/suite.yaml
+```
+Generate topology tables (Markdown/LaTeX):
+```bash
+python -m kvsched.cli topology-table --scenarios configs/scenarios/ --out results/topology_tables.tex --format latex --require-bidirectional
+```
+Scheduler hyper-parameters for kv_heuristic (JSON):
+```bash
+python -m kvsched.cli run --scenario configs/scenarios/S5_hysteresis_horizon.yaml --scheduler kv_heuristic \
+  --policy-json '{"hysteresis_ms":10, "enable_prefetch":true, "enable_overlap":true, "prefetch_horizon_tokens":256}'
+```

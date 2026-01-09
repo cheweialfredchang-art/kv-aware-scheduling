@@ -1,0 +1,28 @@
+
+scenario_id: S2_prompt_length
+workload:
+  num_requests: 80
+  # overwritten by suite labels in analysis (short vs long are separate YAMLs in practice)
+  prompt_tokens_dist: {128: 0.7, 256: 0.3}
+  max_new_tokens_dist: {128: 0.7, 256: 0.3}
+  kv_bytes_per_token: 4096
+nodes:
+  prefillE:
+    gpu: {name: L40S_48GB, vram_total_gb: 48, vram_free_gb: 36}
+    tags: {tier: edge, role: prefill}
+  decodeE:
+    gpu: {name: L40S_48GB, vram_total_gb: 48, vram_free_gb: 30}
+    running_decode: 5
+    queued_decode: 2
+    tags: {tier: edge, role: decode}
+  decodeC:
+    gpu: {name: A100_80GB, vram_total_gb: 80, vram_free_gb: 55}
+    running_decode: 2
+    queued_decode: 1
+    tags: {tier: cloud, role: decode}
+network:
+  links:
+    - {src: prefillE, dst: decodeE, bandwidth_Gbps: 25, rtt_ms: 1.5}
+    - {src: prefillE, dst: decodeC, bandwidth_Gbps: 5, rtt_ms: 18}
+    - {src: decodeE, dst: decodeC, bandwidth_Gbps: 5, rtt_ms: 18}
+    - {src: decodeC, dst: decodeE, bandwidth_Gbps: 5, rtt_ms: 18}

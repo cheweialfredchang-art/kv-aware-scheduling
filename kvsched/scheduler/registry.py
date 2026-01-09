@@ -15,5 +15,9 @@ def get_scheduler(name: str, **kwargs):
     if name in ("kv", "kv_only", "kv_affinity"):
         return KVOnlyScheduler()
     if name in ("kv_heuristic", "kv_aware", "kaware"):
-        return KVAwareHeuristic(net=kwargs.get("net"))
+        return KVAwareHeuristic(
+        net=kwargs.get("net"),
+        weights=kwargs.get("weights"),
+        policy=kwargs.get("policy"),
+    )
     raise ValueError(f"Unknown scheduler: {name}")

@@ -1,0 +1,63 @@
+common:
+  ticks: 1000
+  seeds: [0, 1, 2]
+  schedulers: ["kv_heuristic", "load_only", "kv_only", "random"]
+
+experiments:
+  - id: S1_kv_vs_load
+    scenario: configs/scenarios/S1_kv_vs_load.yaml
+    sweeps:
+      - label: base
+
+  - id: S2_prompt_length
+    scenario: configs/scenarios/S2_prompt_length.yaml
+    sweeps:
+      - label: short_prompts
+      - label: long_prompts
+
+  - id: S3_phase_ratio
+    scenario: configs/scenarios/S3_phase_ratio.yaml
+    sweeps:
+      - label: prefill_heavy
+      - label: decode_heavy
+
+  - id: S4_network_scan
+    scenario: configs/scenarios/S4_network_scan.yaml
+    sweeps:
+      - label: low_bw_high_rtt
+        strict_network: true
+        prefetch: false
+        overlap: false
+      - label: low_bw_high_rtt_prefetch_overlap
+        strict_network: true
+        prefetch: true
+        overlap: true
+      - label: high_bw_low_rtt
+        strict_network: true
+        prefetch: false
+        overlap: false
+      - label: high_bw_low_rtt_prefetch_overlap
+        strict_network: true
+        prefetch: true
+        overlap: true
+
+  - id: S5_hysteresis_horizon
+    scenario: configs/scenarios/S5_hysteresis_horizon.yaml
+    sweeps:
+      - label: hyst_0_h0
+        scheduler_params:
+          policy: {hysteresis_ms: 0.0, enable_prefetch: true, enable_overlap: true, prefetch_horizon_tokens: 0}
+      - label: hyst_10_h0
+        scheduler_params:
+          policy: {hysteresis_ms: 10.0, enable_prefetch: true, enable_overlap: true, prefetch_horizon_tokens: 0}
+      - label: hyst_10_h256
+        scheduler_params:
+          policy: {hysteresis_ms: 10.0, enable_prefetch: true, enable_overlap: true, prefetch_horizon_tokens: 256}
+      - label: hyst_20_h512
+        scheduler_params:
+          policy: {hysteresis_ms: 20.0, enable_prefetch: true, enable_overlap: true, prefetch_horizon_tokens: 512}
+
+  - id: S6_hetero_gpu
+    scenario: configs/scenarios/S6_hetero_gpu.yaml
+    sweeps:
+      - label: hetero_base

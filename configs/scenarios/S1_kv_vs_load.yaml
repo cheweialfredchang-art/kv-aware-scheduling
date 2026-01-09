@@ -1,0 +1,27 @@
+
+scenario_id: S1_kv_vs_load
+workload:
+  num_requests: 80
+  prompt_tokens_dist: {256: 0.6, 512: 0.4}
+  max_new_tokens_dist: {128: 0.7, 256: 0.3}
+  kv_bytes_per_token: 4096
+nodes:
+  prefillA:
+    gpu: {name: A100_80GB, vram_total_gb: 80, vram_free_gb: 60}
+    tags: {tier: cloud, role: prefill}
+  decodeA:
+    gpu: {name: A100_80GB, vram_total_gb: 80, vram_free_gb: 50}
+    running_decode: 8
+    queued_decode: 4
+    tags: {tier: cloud, role: decode}
+  decodeB:
+    gpu: {name: L40S_48GB, vram_total_gb: 48, vram_free_gb: 30}
+    running_decode: 2
+    queued_decode: 1
+    tags: {tier: cloud, role: decode}
+network:
+  links:
+    - {src: prefillA, dst: decodeA, bandwidth_Gbps: 50, rtt_ms: 0.3}
+    - {src: prefillA, dst: decodeB, bandwidth_Gbps: 50, rtt_ms: 0.3}
+    - {src: decodeA, dst: decodeB, bandwidth_Gbps: 25, rtt_ms: 0.4}
+    - {src: decodeB, dst: decodeA, bandwidth_Gbps: 25, rtt_ms: 0.4}

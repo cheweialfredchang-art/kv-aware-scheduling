@@ -5,6 +5,15 @@ import csv
 import json
 from pathlib import Path
 
+def _parse_json_or_none(s: str | None):
+    if s is None:
+        return None
+    s = s.strip()
+    if not s:
+        return None
+    return json.loads(s)
+
+
 from kvsched.config.loader import load_yaml, deep_merge
 from kvsched.models.node import NodeState, GPUDevice, NodeLoad
 from kvsched.models.network import (
@@ -67,7 +76,7 @@ def validate_cfg(cfg: dict):
 
 # ---------------- Core runner ----------------
 
-def run_once(base, scenario, scheduler, ticks, seed, out_root, *, prefetch_on=False, overlap_on=False, strict_network=False):
+def run_once(base, scenario, scheduler, ticks, seed, out_root, *, prefetch_on=False, overlap_on=False, strict_network=False, weights=None, policy=None):
     base_cfg = load_yaml(base)
     sc_cfg = load_yaml(scenario)
     cfg = deep_merge(base_cfg, sc_cfg)
@@ -81,6 +90,8 @@ def run_once(base, scenario, scheduler, ticks, seed, out_root, *, prefetch_on=Fa
         seed=seed,
         prefetch_on=prefetch_on,
         overlap_on=overlap_on,
+        weights=_parse_json_or_none(getattr(args, "weights_json", None)) if "args" in locals() else None,
+        policy=_parse_json_or_none(getattr(args, "policy_json", None)) if "args" in locals() else None,
     )
 
     reqs = make_synthetic_requests(
@@ -125,6 +136,8 @@ def cmd_run(args):
         prefetch_on=args.prefetch,
         overlap_on=args.overlap,
         strict_network=args.strict_network,
+        weights=_parse_json_or_none(args.weights_json),
+        policy=_parse_json_or_none(args.policy_json),
     )
     print(row)
     return 0
@@ -148,6 +161,8 @@ def cmd_batch(args):
                         prefetch_on=args.prefetch,
                         overlap_on=args.overlap,
                         strict_network=args.strict_network,
+                        weights=_parse_json_or_none(args.weights_json),
+                        policy=_parse_json_or_none(args.policy_json),
                     )
                     rows.append(row)
                     print(f"[OK] {sc.name} {sch} seed={seed}")
@@ -172,6 +187,20 @@ def cmd_batch(args):
     return 0
 
 
+def cmd_suite(args):
+    from kvsched.tools.experiment_suite import run_suite
+    idx = run_suite(
+        args.suite,
+        base_cfg=args.base,
+        out_root=args.out,
+        index_path=args.index,
+        fail_fast=args.fail_fast,
+    )
+    print(f"Suite index -> {idx}")
+    return 0
+
+
+
 def cmd_lint_network(args):
     from kvsched.tools.lint_network import lint_scenario_network, lint_scenarios_dir
     p = Path(args.scenarios)
@@ -186,6 +215,22 @@ def cmd_lint_network(args):
     )
     print(json.dumps(report, indent=2))
     return 0
+
+
+def cmd_topology_table(args):
+    from kvsched.tools.topology_table import write_topology_tables
+    p = Path(args.scenarios)
+    scenarios = sorted(p.glob("*.yaml")) if p.is_dir() else [p]
+    out = write_topology_tables(
+        args.base,
+        scenarios,
+        args.out,
+        fmt=args.format,
+        require_bidirectional=args.require_bidirectional,
+    )
+    print(f"Topology tables -> {out}")
+    return 0
+
 
 
 def cmd_compare_modes(args):
@@ -203,52 +248,75 @@ def cmd_compare_modes(args):
 # ---------------- Main ----------------
 
 def main():
-    p = argparse.ArgumentParser("kvsched")
+    import argparse
+
+    p = argparse.ArgumentParser(prog="kvsched")
     sub = p.add_subparsers(dest="cmd", required=True)
 
+    # run
     pr = sub.add_parser("run")
     pr.add_argument("--base", default="configs/base.yaml")
     pr.add_argument("--scenario", required=True)
-    pr.add_argument("--scheduler", default="kv_heuristic")
+    pr.add_argument("--scheduler", required=True)
     pr.add_argument("--ticks", type=int, default=1000)
     pr.add_argument("--seed", type=int, default=0)
     pr.add_argument("--out", default="results/raw")
     pr.add_argument("--prefetch", action="store_true")
     pr.add_argument("--overlap", action="store_true")
     pr.add_argument("--strict-network", action="store_true")
+    pr.add_argument("--weights-json", default="")
+    pr.add_argument("--policy-json", default="")
     pr.set_defaults(func=cmd_run)
 
+    # batch
     pb = sub.add_parser("batch")
     pb.add_argument("--base", default="configs/base.yaml")
     pb.add_argument("--scenarios", required=True)
-    pb.add_argument("--schedulers", default="kv_heuristic,load_only,kv_only,random")
-    pb.add_argument("--seeds", default="0,1,2")
+    pb.add_argument("--schedulers", required=True)
+    pb.add_argument("--seeds", required=True)
     pb.add_argument("--ticks", type=int, default=1000)
     pb.add_argument("--out", default="results/raw")
     pb.add_argument("--index", default="results/aggregated/index.csv")
-    pb.add_argument("--figdir", default="results/figures")
     pb.add_argument("--prefetch", action="store_true")
     pb.add_argument("--overlap", action="store_true")
     pb.add_argument("--strict-network", action="store_true")
+    pb.add_argument("--weights-json", default="")
+    pb.add_argument("--policy-json", default="")
     pb.add_argument("--no-plots", action="store_true")
-    pb.add_argument("--fail-fast", action="store_true")
     pb.set_defaults(func=cmd_batch)
 
-    pl = sub.add_parser("lint-network")
-    pl.add_argument("--base", default="configs/base.yaml")
-    pl.add_argument("--scenarios", required=True)
-    pl.add_argument("--require-bidirectional", action="store_true")
-    pl.add_argument("--require-complete", action="store_true")
-    pl.set_defaults(func=cmd_lint_network)
-
+    # compare-modes
     pc = sub.add_parser("compare-modes")
     pc.add_argument("--relaxed", required=True)
     pc.add_argument("--strict", required=True)
     pc.add_argument("--out", default="results/figures")
     pc.set_defaults(func=cmd_compare_modes)
 
+    # lint-network
+    pl = sub.add_parser("lint-network")
+    pl.add_argument("--scenarios", required=True)
+    pl.add_argument("--require-bidirectional", action="store_true")
+    pl.set_defaults(func=cmd_lint_network)
+
+    # topology-table
+    pt = sub.add_parser("topology-table")
+    pt.add_argument("--scenarios", required=True)
+    pt.add_argument("--out", required=True)
+    pt.add_argument("--format", choices=["md", "latex"], default="md")
+    pt.add_argument("--require-bidirectional", action="store_true")
+    pt.set_defaults(func=cmd_topology_table)
+
+    # suite
+    ps = sub.add_parser("suite")
+    ps.add_argument("--suite", default="configs/experiments/suite.yaml")
+    ps.add_argument("--base", default="configs/base.yaml")
+    ps.add_argument("--out", default="results/raw")
+    ps.add_argument("--index", default="results/aggregated/suite_index.csv")
+    ps.add_argument("--fail-fast", action="store_true")
+    ps.set_defaults(func=cmd_suite)
+
     args = p.parse_args()
-    return args.func(args)
+    return int(args.func(args))
 
 
 if __name__ == "__main__":
