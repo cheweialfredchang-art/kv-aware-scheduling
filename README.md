@@ -96,3 +96,20 @@ Scheduler hyper-parameters for kv_heuristic (JSON):
 python -m kvsched.cli run --scenario configs/scenarios/S5_hysteresis_horizon.yaml --scheduler kv_heuristic \
   --policy-json '{"hysteresis_ms":10, "enable_prefetch":true, "enable_overlap":true, "prefetch_horizon_tokens":256}'
 ```
+
+
+## Windows (run without install)
+
+This repo includes a top-level `kvsched/` package so you can run:
+```powershell
+python -m kvsched.cli ...
+```
+
+Compare modes accepts either CSV paths or directories containing `index.csv`:
+```powershell
+python -m kvsched.cli compare-modes --relaxed results/relaxed --strict results/strict --out results/figures
+```
+
+
+### Batch plots output
+`batch` writes figures into `--figdir` (default: `<out>/figures`).

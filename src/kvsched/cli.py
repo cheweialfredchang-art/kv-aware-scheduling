@@ -5,19 +5,6 @@ import csv
 import json
 from pathlib import Path
 
-def _resolve_index_path(p: str) -> str:
-    from pathlib import Path
-    pp = Path(p)
-    if pp.is_dir():
-        cand = pp / "index.csv"
-        if cand.exists():
-            return str(cand)
-        cand2 = pp / "aggregated" / "index.csv"
-        if cand2.exists():
-            return str(cand2)
-    return str(pp)
-
-
 def _parse_json_or_none(s: str | None):
     if s is None:
         return None
@@ -250,27 +237,14 @@ def cmd_topology_table(args):
 
 
 def cmd_compare_modes(args):
-    from pathlib import Path
-    from kvsched.evaluation.compare_modes import generate_mode_comparison_plots
-
-    relaxed = _resolve_index_path(args.relaxed)
-    strict = _resolve_index_path(args.strict)
-
-    if not Path(relaxed).exists():
-        print(f"[ERROR] relaxed index not found: {relaxed}")
-        print("Hint: generate it with batch, e.g.:")
-        print("  python -m kvsched.cli batch --scenarios configs/scenarios/S1_kv_vs_load.yaml --schedulers kv_heuristic --seeds 0,1,2 --out results/relaxed --index results/relaxed/index.csv")
+    try:
+        from kvsched.evaluation.compare_modes import generate_mode_comparison_plots
+        figs = generate_mode_comparison_plots(args.relaxed, args.strict, args.out)
+        for k, v in figs.items():
+            print(f"{k}: {v}")
+    except ImportError:
+        print("⚠ compare-modes requires pandas + matplotlib + numpy")
         return 2
-
-    if not Path(strict).exists():
-        print(f"[ERROR] strict index not found: {strict}")
-        print("Hint: generate it with strict-network batch, e.g.:")
-        print("  python -m kvsched.cli batch --scenarios configs/scenarios/S1_kv_vs_load.yaml --schedulers kv_heuristic --seeds 0,1,2 --out results/strict --index results/strict/index.csv --strict-network")
-        return 2
-
-    figs = generate_mode_comparison_plots(relaxed, strict, args.out)
-    for k, v in figs.items():
-        print(f"{k}: {v}")
     return 0
 
 
@@ -317,8 +291,8 @@ def main():
 
     # compare-modes
     pc = sub.add_parser("compare-modes")
-    pc.add_argument("--relaxed", required=True, help="CSV path OR directory containing index.csv")
-    pc.add_argument("--strict", required=True, help="CSV path OR directory containing index.csv")
+    pc.add_argument("--relaxed", required=True)
+    pc.add_argument("--strict", required=True)
     pc.add_argument("--out", default="results/figures")
     pc.set_defaults(func=cmd_compare_modes)
 
