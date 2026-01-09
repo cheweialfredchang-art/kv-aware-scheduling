@@ -72,14 +72,6 @@ def cmd_run(args: argparse.Namespace) -> int:
     cfg = deep_merge(base_cfg, scenario_cfg)
     scenario_id = cfg["scenario_id"]
 
-# Validate config sections (nodes/network/workload)
-for key in ("nodes", "network", "workload"):
-    if key not in cfg:
-        raise KeyError(
-            f"Missing '{key}' in merged config. "
-            f"Provide it in configs/base.yaml or in the scenario YAML ({args.scenario})."
-        )
-
     out_dir = Path(args.out)
     out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -136,13 +128,6 @@ def _run_one(base_cfg: dict, scenario_path: Path, scheduler_name: str, seed: int
     scenario_cfg = load_yaml(scenario_path)
     cfg = deep_merge(base_cfg, scenario_cfg)
     scenario_id = cfg["scenario_id"]
-
-for key in ("nodes", "network", "workload"):
-    if key not in cfg:
-        raise KeyError(
-            f"Missing '{key}' in merged config. Provide it in configs/base.yaml or in the scenario YAML ({scenario_path})."
-        )
-
 
     nodes = build_nodes(cfg["nodes"])
     network = build_network(cfg["network"])

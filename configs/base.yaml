@@ -2,3 +2,38 @@ scenario_id: demo
 scheduler: kv_heuristic
 seed: 0
 ticks: 200
+workload:
+  num_requests: 50
+nodes:
+  nodeA:
+    gpu:
+      name: A100_80GB
+      vram_total_gb: 80
+      vram_free_gb: 60
+    running_decode: 5
+    queued_decode: 2
+    tags:
+      tier: cloud
+  nodeB:
+    gpu:
+      name: L40S_48GB
+      vram_total_gb: 48
+      vram_free_gb: 30
+    running_decode: 2
+    queued_decode: 1
+    tags:
+      tier: edge
+network:
+  default_util: 0.1
+  util_by_pair:
+    nodeA->nodeB: 0.4
+    nodeB->nodeA: 0.1
+  links:
+  - src: nodeA
+    dst: nodeB
+    bandwidth_Gbps: 25.0
+    rtt_ms: 0.3
+  - src: nodeB
+    dst: nodeA
+    bandwidth_Gbps: 25.0
+    rtt_ms: 0.3
