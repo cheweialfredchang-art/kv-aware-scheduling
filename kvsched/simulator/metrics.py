@@ -1,6 +1,6 @@
 from __future__ import annotations
 from dataclasses import dataclass, field
-from typing import Dict, List
+from typing import Dict, List, Any
 import numpy as np
 
 @dataclass
@@ -22,3 +22,9 @@ class RunMetrics:
             "kv_migrations": float(self.kv_migrations),
             "kv_migration_bytes": float(self.kv_migration_bytes),
         }
+
+    def to_dict(self, include_samples: bool = False) -> Dict[str, Any]:
+        d: Dict[str, Any] = dict(self.summary())
+        if include_samples:
+            d["latencies_ms"] = list(map(float, self.latencies_ms))
+        return d

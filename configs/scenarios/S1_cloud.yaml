@@ -1,1 +1,80 @@
 scenario_id: S1_cloud
+workload:
+  num_requests: 200
+nodes:
+  cloud_p0:
+    gpu:
+      name: H100_80GB
+      vram_total_gb: 80
+      vram_free_gb: 60
+    running_prefill: 2
+    queued_prefill: 1
+    tags:
+      tier: cloud
+      role: prefill
+  cloud_p1:
+    gpu:
+      name: A100_80GB
+      vram_total_gb: 80
+      vram_free_gb: 55
+    running_prefill: 1
+    queued_prefill: 2
+    tags:
+      tier: cloud
+      role: prefill
+  cloud_d0:
+    gpu:
+      name: A100_80GB
+      vram_total_gb: 80
+      vram_free_gb: 50
+    running_decode: 6
+    queued_decode: 3
+    tags:
+      tier: cloud
+      role: decode
+  cloud_d1:
+    gpu:
+      name: L40S_48GB
+      vram_total_gb: 48
+      vram_free_gb: 30
+    running_decode: 4
+    queued_decode: 4
+    tags:
+      tier: cloud
+      role: decode
+network:
+  default_util: 0.15
+  links:
+  - src: cloud_p0
+    dst: cloud_d0
+    bandwidth_Gbps: 200.0
+    rtt_ms: 0.25
+  - src: cloud_d0
+    dst: cloud_p0
+    bandwidth_Gbps: 200.0
+    rtt_ms: 0.25
+  - src: cloud_p0
+    dst: cloud_d1
+    bandwidth_Gbps: 200.0
+    rtt_ms: 0.3
+  - src: cloud_d1
+    dst: cloud_p0
+    bandwidth_Gbps: 200.0
+    rtt_ms: 0.3
+  - src: cloud_p1
+    dst: cloud_d0
+    bandwidth_Gbps: 200.0
+    rtt_ms: 0.25
+  - src: cloud_d0
+    dst: cloud_p1
+    bandwidth_Gbps: 200.0
+    rtt_ms: 0.25
+  - src: cloud_p1
+    dst: cloud_d1
+    bandwidth_Gbps: 200.0
+    rtt_ms: 0.3
+  - src: cloud_d1
+    dst: cloud_p1
+    bandwidth_Gbps: 200.0
+    rtt_ms: 0.3
+  util_by_pair: {}

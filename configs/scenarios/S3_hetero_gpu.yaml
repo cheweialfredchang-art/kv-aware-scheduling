@@ -1,1 +1,122 @@
 scenario_id: S3_hetero_gpu
+workload:
+  num_requests: 300
+nodes:
+  cloud_p0:
+    gpu:
+      name: H100_80GB
+      vram_total_gb: 80
+      vram_free_gb: 62
+    running_prefill: 3
+    queued_prefill: 1
+    tags:
+      tier: cloud
+      role: prefill
+  cloud_p1:
+    gpu:
+      name: A100_80GB
+      vram_total_gb: 80
+      vram_free_gb: 50
+    running_prefill: 2
+    queued_prefill: 3
+    tags:
+      tier: cloud
+      role: prefill
+  cloud_d0:
+    gpu:
+      name: A100_80GB
+      vram_total_gb: 80
+      vram_free_gb: 40
+    running_decode: 6
+    queued_decode: 5
+    tags:
+      tier: cloud
+      role: decode
+  edge_d0:
+    gpu:
+      name: L40S_48GB
+      vram_total_gb: 48
+      vram_free_gb: 25
+    running_decode: 4
+    queued_decode: 8
+    tags:
+      tier: edge
+      role: decode
+  edge_d1:
+    gpu:
+      name: RTX4090_24GB
+      vram_total_gb: 24
+      vram_free_gb: 10
+    running_decode: 2
+    queued_decode: 10
+    tags:
+      tier: edge
+      role: decode
+network:
+  default_util: 0.25
+  links:
+  - src: cloud_p0
+    dst: cloud_p1
+    bandwidth_Gbps: 200.0
+    rtt_ms: 0.25
+  - src: cloud_p1
+    dst: cloud_p0
+    bandwidth_Gbps: 200.0
+    rtt_ms: 0.25
+  - src: cloud_p0
+    dst: cloud_d0
+    bandwidth_Gbps: 200.0
+    rtt_ms: 0.3
+  - src: cloud_d0
+    dst: cloud_p0
+    bandwidth_Gbps: 200.0
+    rtt_ms: 0.3
+  - src: cloud_p1
+    dst: cloud_d0
+    bandwidth_Gbps: 200.0
+    rtt_ms: 0.3
+  - src: cloud_d0
+    dst: cloud_p1
+    bandwidth_Gbps: 200.0
+    rtt_ms: 0.3
+  - src: cloud_p0
+    dst: edge_d0
+    bandwidth_Gbps: 2.0
+    rtt_ms: 30.0
+  - src: edge_d0
+    dst: cloud_p0
+    bandwidth_Gbps: 2.0
+    rtt_ms: 30.0
+  - src: cloud_p0
+    dst: edge_d1
+    bandwidth_Gbps: 1.0
+    rtt_ms: 35.0
+  - src: edge_d1
+    dst: cloud_p0
+    bandwidth_Gbps: 1.0
+    rtt_ms: 35.0
+  - src: cloud_d0
+    dst: edge_d0
+    bandwidth_Gbps: 2.0
+    rtt_ms: 30.0
+  - src: edge_d0
+    dst: cloud_d0
+    bandwidth_Gbps: 2.0
+    rtt_ms: 30.0
+  - src: cloud_d0
+    dst: edge_d1
+    bandwidth_Gbps: 1.0
+    rtt_ms: 35.0
+  - src: edge_d1
+    dst: cloud_d0
+    bandwidth_Gbps: 1.0
+    rtt_ms: 35.0
+  - src: edge_d0
+    dst: edge_d1
+    bandwidth_Gbps: 10.0
+    rtt_ms: 2.0
+  - src: edge_d1
+    dst: edge_d0
+    bandwidth_Gbps: 10.0
+    rtt_ms: 2.0
+  util_by_pair: {}

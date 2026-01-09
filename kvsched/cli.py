@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import argparse
-from pathlib import Path
 import csv
+from pathlib import Path
 from typing import List
 
 from kvsched.config.loader import load_yaml, deep_merge
@@ -18,7 +18,7 @@ from kvsched.simulator.reporters import write_summary
 
 
 # -------------------------------------------------
-# Builders shared by run & batch
+# Builders (shared)
 # -------------------------------------------------
 
 def build_nodes(node_cfg: dict) -> dict[str, NodeState]:
@@ -62,25 +62,39 @@ def build_network(net_cfg: dict) -> NetworkModel:
     return NetworkModel(topo=topo)
 
 
-# -------------------------------------------------
-# Subcommand: run
-# -------------------------------------------------
+def _validate_cfg(cfg: dict, scenario_label: str) -> None:
+    for key in ("scenario_id", "nodes", "network", "workload"):
+        if key not in cfg:
+            raise KeyError(
+                f"Missing '{key}' in merged config for {scenario_label}. "
+                f"Provide it in configs/base.yaml or in the scenario YAML."
+            )
 
-def cmd_run(args: argparse.Namespace) -> int:
-    base_cfg = load_yaml(args.base)
-    scenario_cfg = load_yaml(args.scenario)
+
+def _run_once(
+    *,
+    base_cfg_path: str,
+    scenario_path: str,
+    scheduler_name: str,
+    ticks: int,
+    seed: int,
+    out_root: str,
+) -> dict:
+    base_cfg = load_yaml(base_cfg_path)
+    scenario_cfg = load_yaml(scenario_path)
     cfg = deep_merge(base_cfg, scenario_cfg)
-    scenario_id = cfg["scenario_id"]
+    _validate_cfg(cfg, scenario_path)
 
-    out_dir = Path(args.out)
-    out_dir.mkdir(parents=True, exist_ok=True)
+    scenario_id = cfg["scenario_id"]
+    out_root_p = Path(out_root)
+    out_root_p.mkdir(parents=True, exist_ok=True)
 
     nodes = build_nodes(cfg["nodes"])
     network = build_network(cfg["network"])
-    scheduler = get_scheduler(args.scheduler, net=network, seed=args.seed)
+    scheduler = get_scheduler(scheduler_name, net=network, seed=seed)
 
     requests = make_synthetic_requests(
-        n=int(cfg.get("workload", {}).get("num_requests", 50)),
+        n=int(cfg["workload"].get("num_requests", 50)),
         owner_nodes=list(nodes.keys()),
     )
 
@@ -88,28 +102,54 @@ def cmd_run(args: argparse.Namespace) -> int:
         requests=requests,
         nodes=nodes,
         scheduler=scheduler,
-        ticks=args.ticks,
-        seed=args.seed,
+        ticks=ticks,
+        seed=seed,
     )
 
-    summary = metrics.summary()
-    summary_path = out_dir / f"{scenario_id}_{args.scheduler}_seed{args.seed}.json"
-    write_summary(summary_path, metrics)
+    # run output layout
+    run_dir = out_root_p / scenario_id / scheduler_name / f"seed={seed}"
+    run_dir.mkdir(parents=True, exist_ok=True)
+    summary_path = run_dir / "summary.json"
+    write_summary(summary_path, metrics, include_samples=True)
+
+    row = metrics.summary()
+    row.update({
+        "scenario": scenario_id,
+        "scheduler": scheduler_name,
+        "seed": seed,
+        "ticks": ticks,
+        "summary_path": str(summary_path),
+    })
+    return row
+
+
+# -------------------------------------------------
+# Subcommand: run
+# -------------------------------------------------
+
+def cmd_run(args: argparse.Namespace) -> int:
+    row = _run_once(
+        base_cfg_path=args.base,
+        scenario_path=args.scenario,
+        scheduler_name=args.scheduler,
+        ticks=args.ticks,
+        seed=args.seed,
+        out_root=args.out,
+    )
 
     print("=" * 60)
-    print(f"Scenario : {scenario_id}")
-    print(f"Scheduler: {args.scheduler}")
-    print(f"Ticks    : {args.ticks}")
-    print(f"Seed     : {args.seed}")
+    print(f"Scenario  : {row['scenario']}")
+    print(f"Scheduler : {row['scheduler']}")
+    print(f"Ticks     : {row['ticks']}")
+    print(f"Seed      : {row['seed']}")
     print("-" * 60)
-    print(f"P50 latency : {summary['p50_ms']:.2f} ms")
-    print(f"P95 latency : {summary['p95_ms']:.2f} ms")
-    print(f"P99 latency : {summary['p99_ms']:.2f} ms")
-    print(f"KV migrations       : {int(summary['kv_migrations'])}")
-    print(f"KV migration bytes  : {summary['kv_migration_bytes'] / (1024**3):.2f} GiB")
-    print(f"Output -> {summary_path}")
+    print(f"P50 latency : {row['p50_ms']:.2f} ms")
+    print(f"P95 latency : {row['p95_ms']:.2f} ms")
+    print(f"P99 latency : {row['p99_ms']:.2f} ms")
+    print(f"KV migrations       : {int(row['kv_migrations'])}")
+    print(f"KV migration bytes  : {row['kv_migration_bytes'] / (1024**3):.2f} GiB")
+    print(f"Output -> {row['summary_path']}")
     print("=" * 60)
-
     return 0
 
 
@@ -124,55 +164,15 @@ def _resolve_scenarios(s: str) -> List[Path]:
     return [Path(x.strip()) for x in s.split(",") if x.strip()]
 
 
-def _run_one(base_cfg: dict, scenario_path: Path, scheduler_name: str, seed: int, ticks: int, out_root: Path) -> dict:
-    scenario_cfg = load_yaml(scenario_path)
-    cfg = deep_merge(base_cfg, scenario_cfg)
-    scenario_id = cfg["scenario_id"]
-
-    nodes = build_nodes(cfg["nodes"])
-    network = build_network(cfg["network"])
-    scheduler = get_scheduler(scheduler_name, net=network, seed=seed)
-
-    requests = make_synthetic_requests(
-        n=int(cfg.get("workload", {}).get("num_requests", 50)),
-        owner_nodes=list(nodes.keys()),
-    )
-
-    metrics = run_simulation(
-        requests=requests,
-        nodes=nodes,
-        scheduler=scheduler,
-        ticks=ticks,
-        seed=seed,
-    )
-
-    out_dir = out_root / scenario_id / scheduler_name / f"seed={seed}"
-    out_dir.mkdir(parents=True, exist_ok=True)
-    write_summary(out_dir / "summary.json", metrics)
-
-    row = metrics.summary()
-    row.update({
-        "scenario": scenario_id,
-        "scheduler": scheduler_name,
-        "seed": seed,
-        "ticks": ticks,
-        "summary_path": str(out_dir / "summary.json"),
-    })
-    return row
-
-
 def cmd_batch(args: argparse.Namespace) -> int:
-    base_cfg = load_yaml(args.base)
     scenario_paths = _resolve_scenarios(args.scenarios)
     schedulers = [s.strip() for s in args.schedulers.split(",") if s.strip()]
     seeds = [int(x.strip()) for x in args.seeds.split(",") if x.strip()]
 
-    out_root = Path(args.out)
-    out_root.mkdir(parents=True, exist_ok=True)
-
-    rows: List[dict] = []
     total = len(scenario_paths) * len(schedulers) * len(seeds)
     done = 0
+    rows: List[dict] = []
+    errors: List[str] = []
 
     for sp in scenario_paths:
         for sch in schedulers:
@@ -180,13 +180,24 @@ def cmd_batch(args: argparse.Namespace) -> int:
                 done += 1
                 label = f"[{done}/{total}] scenario={sp.name} scheduler={sch} seed={seed}"
                 try:
-                    rows.append(_run_one(base_cfg, sp, sch, seed, args.ticks, out_root))
+                    row = _run_once(
+                        base_cfg_path=args.base,
+                        scenario_path=str(sp),
+                        scheduler_name=sch,
+                        ticks=args.ticks,
+                        seed=seed,
+                        out_root=args.out,
+                    )
+                    rows.append(row)
                     print(f"{label} -> OK")
                 except Exception as e:
-                    print(f"{label} -> ERROR: {e}")
+                    msg = f"{label} -> ERROR: {e}"
+                    errors.append(msg)
+                    print(msg)
                     if args.fail_fast:
                         raise
 
+    # write index.csv
     index_path = Path(args.index)
     index_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -203,34 +214,44 @@ def cmd_batch(args: argparse.Namespace) -> int:
         for r in rows:
             w.writerow({k: r.get(k, "") for k in fieldnames})
 
+    if errors:
+        err_path = index_path.with_suffix(".errors.txt")
+        err_path.write_text("\n".join(errors), encoding="utf-8")
+        print(f"Errors written to: {err_path}")
+
     print(f"Index written to: {index_path}")
+# Auto-generate plots (CDF per scenario, P99 bar, migration bytes bar)
+if getattr(args, "plots", True):
+    from kvsched.evaluation.plots import generate_all_plots
+    fig_dir = Path(args.figdir)
+    figs = generate_all_plots(index_path, fig_dir)
+    print(f"Plots written to: {fig_dir}")
+
     print(f"Completed runs: {len(rows)} / {total}")
     return 0
 
 
 # -------------------------------------------------
-# Main
+# Main (subcommands)
 # -------------------------------------------------
 
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(
         prog="kvsched",
-        description="KV-aware scheduling research scaffold CLI (run/batch)"
+        description="KV-aware scheduling research scaffold CLI"
     )
     sub = p.add_subparsers(dest="cmd", required=True)
 
-    # run
-    pr = sub.add_parser("run", help="Run a single scenario once")
+    pr = sub.add_parser("run", help="Run a single scenario")
     pr.add_argument("--base", default="configs/base.yaml", help="Base config YAML")
     pr.add_argument("--scenario", required=True, help="Scenario YAML path")
     pr.add_argument("--scheduler", default="kv_heuristic",
                     help="random|rr|load_only|kv_only|kv_heuristic")
     pr.add_argument("--ticks", type=int, default=1000)
     pr.add_argument("--seed", type=int, default=0)
-    pr.add_argument("--out", default="results/raw", help="Output directory")
+    pr.add_argument("--out", default="results/raw", help="Output root directory")
     pr.set_defaults(func=cmd_run)
 
-    # batch
     pb = sub.add_parser("batch", help="Batch run scenarios × schedulers × seeds")
     pb.add_argument("--base", default="configs/base.yaml", help="Base config YAML")
     pb.add_argument("--scenarios", required=True,
@@ -242,6 +263,11 @@ def main(argv: list[str] | None = None) -> int:
     pb.add_argument("--out", default="results/raw", help="Output root directory")
     pb.add_argument("--index", default="results/aggregated/index.csv", help="CSV index output path")
     pb.add_argument("--fail-fast", action="store_true", help="Stop immediately on first error")
+pb.add_argument("--no-plots", dest="plots", action="store_false",
+                help="Disable automatic plot generation after batch")
+pb.add_argument("--figdir", default="results/figures",
+                help="Directory to write figures (png)")
+
     pb.set_defaults(func=cmd_batch)
 
     args = p.parse_args(argv)

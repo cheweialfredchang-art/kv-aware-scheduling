@@ -24,3 +24,11 @@ python -m kvsched.cli batch --scenarios configs/scenarios/ --schedulers kv_heuri
 - `results/`: outputs (raw / aggregated / figures)
 
 This repository is a **research scaffold**: extend the simulator and schedulers to match your paper/proposal.
+
+
+## Batch + Plots
+
+```bash
+python -m kvsched.cli batch --scenarios configs/scenarios/ --schedulers kv_heuristic,load_only,kv_only,random --seeds 0,1,2 --ticks 1000 --out results/raw --index results/aggregated/index.csv
+# Figures will be saved to results/figures (cdf_*.png, p99_bar.png, migration_bytes_bar.png)
+```
