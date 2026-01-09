@@ -5,19 +5,6 @@ import csv
 import json
 from pathlib import Path
 
-def _resolve_index_path(p: str) -> str:
-    from pathlib import Path
-    pp = Path(p)
-    if pp.is_dir():
-        cand = pp / "index.csv"
-        if cand.exists():
-            return str(cand)
-        cand2 = pp / "aggregated" / "index.csv"
-        if cand2.exists():
-            return str(cand2)
-    return str(pp)
-
-
 def _parse_json_or_none(s: str | None):
     if s is None:
         return None
@@ -193,6 +180,7 @@ def cmd_batch(args):
 
     if not args.no_plots:
         try:
+            from pathlib import Path
             from kvsched.evaluation.plots import generate_all_plots
             figdir = getattr(args, "figdir", "") or str(Path(args.out) / "figures")
             generate_all_plots(index, figdir)
@@ -200,14 +188,16 @@ def cmd_batch(args):
             print("⚠ plotting skipped (pandas/matplotlib not installed)")
         except Exception as e:
             print(f"[WARN] plot generation failed: {e}")
+
     return 0
 
 
 def cmd_suite(args):
     from kvsched.tools.experiment_suite import run_suite
+    base = getattr(args, 'base', 'configs/base.yaml')
     idx = run_suite(
         args.suite,
-        base_cfg=args.base,
+        base_cfg=base,
         out_root=args.out,
         index_path=args.index,
         fail_fast=args.fail_fast,
@@ -219,14 +209,15 @@ def cmd_suite(args):
 
 def cmd_lint_network(args):
     base = getattr(args, 'base', 'configs/base.yaml')
+    base = getattr(args, 'base', 'configs/base.yaml')
     from kvsched.tools.lint_network import lint_scenario_network, lint_scenarios_dir
     p = Path(args.scenarios)
     report = (
-        lint_scenarios_dir(args.base, p,
+        lint_scenarios_dir(base, p,
                            require_bidirectional=args.require_bidirectional,
                            require_complete=args.require_complete)
         if p.is_dir() else
-        lint_scenario_network(args.base, p,
+        lint_scenario_network(base, p,
                               require_bidirectional=args.require_bidirectional,
                               require_complete=args.require_complete)
     )
@@ -236,11 +227,12 @@ def cmd_lint_network(args):
 
 def cmd_topology_table(args):
     base = getattr(args, 'base', 'configs/base.yaml')
+    base = getattr(args, 'base', 'configs/base.yaml')
     from kvsched.tools.topology_table import write_topology_tables
     p = Path(args.scenarios)
     scenarios = sorted(p.glob("*.yaml")) if p.is_dir() else [p]
     out = write_topology_tables(
-        args.base,
+        base,
         scenarios,
         args.out,
         fmt=args.format,
@@ -260,14 +252,9 @@ def cmd_compare_modes(args):
 
     if not Path(relaxed).exists():
         print(f"[ERROR] relaxed index not found: {relaxed}")
-        print("Hint: generate it with batch, e.g.:")
-        print("  python -m kvsched.cli batch --scenarios configs/scenarios/S1_kv_vs_load.yaml --schedulers kv_heuristic --seeds 0,1,2 --out results/relaxed --index results/relaxed/index.csv")
         return 2
-
     if not Path(strict).exists():
         print(f"[ERROR] strict index not found: {strict}")
-        print("Hint: generate it with strict-network batch, e.g.:")
-        print("  python -m kvsched.cli batch --scenarios configs/scenarios/S1_kv_vs_load.yaml --schedulers kv_heuristic --seeds 0,1,2 --out results/strict --index results/strict/index.csv --strict-network")
         return 2
 
     figs = generate_mode_comparison_plots(relaxed, strict, args.out)
@@ -277,6 +264,18 @@ def cmd_compare_modes(args):
 
 
 # ---------------- Main ----------------
+def cmd_plots_s1s6(args):
+    """Generate all S1–S6 paper figures from suite_index.csv.
+    Expects suite_index.csv produced by `kvsched cli suite` or by concatenated batch runs.
+    """
+    from kvsched.evaluation.plots_s1s6 import generate_s1s6_figures
+    figs = generate_s1s6_figures(args.suite_index, args.out, title_prefix=args.title_prefix)
+    for k, v in figs.items():
+        print(f"{k}: {v}")
+    return 0
+
+
+
 
 def main():
     import argparse
@@ -317,6 +316,22 @@ def main():
     pb.add_argument("--figdir", default="")
     pb.set_defaults(func=cmd_batch)
 
+    # suite
+    ps = sub.add_parser("suite")
+    ps.add_argument("--suite", default="configs/experiments/suite.yaml")
+    ps.add_argument("--base", default="configs/base.yaml")
+    ps.add_argument("--out", default="results/raw")
+    ps.add_argument("--index", default="results/aggregated/suite_index.csv")
+    ps.add_argument("--fail-fast", action="store_true")
+    ps.set_defaults(func=cmd_suite)
+
+    # plots-s1s6 (new): generate all paper figures from suite outputs
+    pg = sub.add_parser("plots-s1s6")
+    pg.add_argument("--suite-index", default="results/aggregated/suite_index.csv")
+    pg.add_argument("--out", default="results/figures_s1s6")
+    pg.add_argument("--title-prefix", default="")
+    pg.set_defaults(func=cmd_plots_s1s6)
+
     # compare-modes
     pc = sub.add_parser("compare-modes")
     pc.add_argument("--relaxed", required=True, help="CSV path OR directory containing index.csv")
@@ -339,15 +354,6 @@ def main():
     pt.add_argument("--format", choices=["md", "latex"], default="md")
     pt.add_argument("--require-bidirectional", action="store_true")
     pt.set_defaults(func=cmd_topology_table)
-
-    # suite
-    ps = sub.add_parser("suite")
-    ps.add_argument("--suite", default="configs/experiments/suite.yaml")
-    ps.add_argument("--base", default="configs/base.yaml")
-    ps.add_argument("--out", default="results/raw")
-    ps.add_argument("--index", default="results/aggregated/suite_index.csv")
-    ps.add_argument("--fail-fast", action="store_true")
-    ps.set_defaults(func=cmd_suite)
 
     args = p.parse_args()
     return int(args.func(args))
