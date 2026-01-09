@@ -131,7 +131,7 @@ def run_once(base, scenario, scheduler, ticks, seed, out_root, *, prefetch_on=Fa
 
 def cmd_run(args):
     row = run_once(
-        args.base, args.scenario, args.scheduler,
+        base, args.scenario, args.scheduler,
         args.ticks, args.seed, args.out,
         prefetch_on=args.prefetch,
         overlap_on=args.overlap,
@@ -156,7 +156,7 @@ def cmd_batch(args):
             for seed in seeds:
                 try:
                     row = run_once(
-                        args.base, sc, sch,
+                        base, sc, sch,
                         args.ticks, seed, args.out,
                         prefetch_on=args.prefetch,
                         overlap_on=args.overlap,
@@ -205,6 +205,7 @@ def cmd_suite(args):
 
 
 def cmd_lint_network(args):
+    base = getattr(args, 'base', 'configs/base.yaml')
     from kvsched.tools.lint_network import lint_scenario_network, lint_scenarios_dir
     p = Path(args.scenarios)
     report = (
@@ -221,6 +222,7 @@ def cmd_lint_network(args):
 
 
 def cmd_topology_table(args):
+    base = getattr(args, 'base', 'configs/base.yaml')
     from kvsched.tools.topology_table import write_topology_tables
     p = Path(args.scenarios)
     scenarios = sorted(p.glob("*.yaml")) if p.is_dir() else [p]
@@ -298,12 +300,14 @@ def main():
 
     # lint-network
     pl = sub.add_parser("lint-network")
+    pl.add_argument(\"--base\", default=\"configs/base.yaml\")
     pl.add_argument("--scenarios", required=True)
     pl.add_argument("--require-bidirectional", action="store_true")
     pl.set_defaults(func=cmd_lint_network)
 
     # topology-table
     pt = sub.add_parser("topology-table")
+    pt.add_argument(\"--base\", default=\"configs/base.yaml\")
     pt.add_argument("--scenarios", required=True)
     pt.add_argument("--out", required=True)
     pt.add_argument("--format", choices=["md", "latex"], default="md")
