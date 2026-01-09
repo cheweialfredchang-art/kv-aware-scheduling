@@ -63,3 +63,8 @@ python -m kvsched.cli batch --scenarios configs/scenarios/ --schedulers kv_heuri
 python -m kvsched.cli batch --scenarios configs/scenarios/ --schedulers kv_heuristic --seeds 0,1,2 --strict-network --index results/strict/index.csv
 python -m kvsched.cli compare-modes --relaxed results/relaxed/index.csv --strict results/strict/index.csv --out results/figures
 ```
+
+
+## Changelog
+
+- v9: Remove pandas FutureWarning by avoiding to_numeric(errors='ignore') in plotting utilities.

@@ -19,7 +19,10 @@ def _read_index(index_csv: str | Path):
     df = pd.read_csv(index_csv)
     for c in df.columns:
         if c.endswith("_ms") or c.endswith("_bytes") or c in ("seed", "ticks", "prefetch", "overlap"):
-            df[c] = pd.to_numeric(df[c], errors="ignore")
+            try:
+                df[c] = pd.to_numeric(df[c])
+            except (ValueError, TypeError):
+                pass
     return df
 
 
