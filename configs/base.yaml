@@ -1,0 +1,4 @@
+scenario_id: demo
+scheduler: kv_heuristic
+seed: 0
+ticks: 200
