@@ -4,13 +4,26 @@ import argparse
 import csv
 import json
 from pathlib import Path
+KVSCHED_CLI_VERSION = "v26"
+
 
 def _parse_json_or_none(s: str | None):
+    """Parse JSON string or JSON file path. Returns dict or None."""
     if s is None:
         return None
-    s = s.strip()
+    s = str(s).strip()
     if not s:
         return None
+
+    # If it's a file path, load its content.
+    from pathlib import Path
+    p = Path(s)
+    if p.exists() and p.is_file():
+        raw = p.read_text(encoding="utf-8").strip()
+        if not raw:
+            raise ValueError(f"JSON file '{p}' is empty.")
+        return json.loads(raw)
+
     return json.loads(s)
 
 
@@ -130,6 +143,8 @@ def run_once(base, scenario, scheduler, ticks, seed, out_root, *, prefetch_on=Fa
 # ---------------- Commands ----------------
 
 def cmd_run(args):
+    from pathlib import Path
+    base = getattr(args, 'base', 'configs/base.yaml')
     row = run_once(
         base, args.scenario, args.scheduler,
         args.ticks, args.seed, args.out,
@@ -144,6 +159,10 @@ def cmd_run(args):
 
 
 def cmd_batch(args):
+    from pathlib import Path
+    base = getattr(args, 'base', 'configs/base.yaml')
+    from pathlib import Path
+    base = getattr(args, 'base', 'configs/base.yaml')
     p = Path(args.scenarios)
     scenarios = sorted(p.glob("*.yaml")) if p.is_dir() else [p]
 
@@ -168,11 +187,14 @@ def cmd_batch(args):
                     print(f"[OK] {sc.name} {sch} seed={seed}")
                 except Exception as e:
                     print(f"[ERROR] {sc.name} {sch} seed={seed}: {e}")
-                    if args.fail_fast:
+                    if getattr(args, 'fail_fast', False):
                         raise
 
     index = Path(args.index)
     index.parent.mkdir(parents=True, exist_ok=True)
+    if not rows:
+        print(\"[ERROR] No successful runs; index.csv not written. Fix the first error above and rerun.\")
+        return 2
     with index.open("w", newline="", encoding="utf-8") as f:
         w = csv.DictWriter(f, fieldnames=rows[0].keys())
         w.writeheader()
@@ -180,7 +202,6 @@ def cmd_batch(args):
 
     if not args.no_plots:
         try:
-            from pathlib import Path
             from kvsched.evaluation.plots import generate_all_plots
             figdir = getattr(args, "figdir", "") or str(Path(args.out) / "figures")
             generate_all_plots(index, figdir)
@@ -243,6 +264,15 @@ def cmd_topology_table(args):
 
 
 
+def _resolve_index_path(p: str) -> str:
+    """Accept either an index.csv path or a directory containing index.csv."""
+    from pathlib import Path
+    q = Path(p)
+    if q.is_dir():
+        return str(q / "index.csv")
+    return str(q)
+
+
 def cmd_compare_modes(args):
     from pathlib import Path
     from kvsched.evaluation.compare_modes import generate_mode_comparison_plots
@@ -282,6 +312,9 @@ def main():
 
     p = argparse.ArgumentParser(prog="kvsched")
     sub = p.add_subparsers(dest="cmd", required=True)
+
+    pv = sub.add_parser("version")
+    pv.set_defaults(func=lambda args: (print(KVSCHED_CLI_VERSION) or 0))
 
     # run
     pr = sub.add_parser("run")
