@@ -4,7 +4,7 @@ import argparse
 import csv
 import json
 from pathlib import Path
-KVSCHED_CLI_VERSION = "v26"
+KVSCHED_CLI_VERSION = "v27"
 
 
 def _parse_json_or_none(s: str | None):
@@ -273,6 +273,76 @@ def _resolve_index_path(p: str) -> str:
     return str(q)
 
 
+
+def cmd_microbench(args) -> int:
+    """Generate a microbenchmark template CSV for fitting the latency model.
+
+    This command does NOT require a GPU. It creates a CSV you can fill with
+    measured latencies (e.g., from a real serving stack or a simple torch
+    benchmark). Then use `fit-latency` to fit alpha/beta/gamma.
+    """
+    from pathlib import Path
+    import csv
+    out = Path(args.out)
+    out.parent.mkdir(parents=True, exist_ok=True)
+
+    gpus = [g.strip() for g in args.gpus.split(",") if g.strip()]
+    seq_lens = [int(x) for x in args.seq_lens.split(",") if x.strip()]
+    batches = [int(x) for x in args.batches.split(",") if x.strip()]
+    stages = ["prefill", "decode"] if args.include_stages else ["total"]
+
+    rows = []
+    for g in gpus:
+        for st in stages:
+            for s in seq_lens:
+                for b in batches:
+                    rows.append({
+                        "gpu": g,
+                        "stage": st,
+                        "seq_len": s,
+                        "batch": b,
+                        "latency_ms": ""  # fill this in
+                    })
+
+    with open(out, "w", newline="", encoding="utf-8") as f:
+        w = csv.DictWriter(f, fieldnames=["gpu", "stage", "seq_len", "batch", "latency_ms"])
+        w.writeheader()
+        w.writerows(rows)
+
+    print(f"[OK] Wrote microbench template: {out}")
+    print("Fill latency_ms with measured values, then run:")
+    print(f"  python -m kvsched.cli fit-latency --in {out} --out configs/latency/fitted_gpu_profiles.yaml")
+    return 0
+
+
+def cmd_fit_latency(args) -> int:
+    """Fit the analytic latency model parameters from a microbench CSV."""
+    from pathlib import Path
+    import yaml
+    from kvsched.latency.fit import fit_linear_latency
+
+    results = fit_linear_latency(args.input, gpu=args.gpu)
+    out_path = Path(args.out)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Emit YAML in the same shape as configs/latency/*.yaml (simple key->params)
+    out = {"gpu_profiles": {}}
+    for r in results:
+        out["gpu_profiles"][r.gpu] = {
+            "alpha_ms": float(r.alpha_ms),
+            "beta_ms_per_token": float(r.beta_ms_per_token),
+            "gamma_ms_per_batch": float(r.gamma_ms_per_batch),
+            "rmse_ms": float(r.rmse_ms),
+            "n": int(r.n),
+        }
+
+    out_path.write_text(yaml.safe_dump(out, sort_keys=False), encoding="utf-8")
+    print(f"[OK] Fitted {len(results)} GPU profile(s) -> {out_path}")
+    for r in results:
+        print(f"  {r.gpu}: alpha={r.alpha_ms:.4f} ms, beta={r.beta_ms_per_token:.6f} ms/token, gamma={r.gamma_ms_per_batch:.6f} ms/batch (rmse={r.rmse_ms:.4f} ms, n={r.n})")
+    return 0
+
+
 def cmd_compare_modes(args):
     from pathlib import Path
     from kvsched.evaluation.compare_modes import generate_mode_comparison_plots
@@ -366,10 +436,27 @@ def main():
     pg.set_defaults(func=cmd_plots_s1s6)
 
     # compare-modes
-    pc = sub.add_parser("compare-modes")
-    pc.add_argument("--relaxed", required=True, help="CSV path OR directory containing index.csv")
-    pc.add_argument("--strict", required=True, help="CSV path OR directory containing index.csv")
-    pc.add_argument("--out", default="results/figures")
+    
+    pm = sub.add_parser("microbench", help="Generate a microbench CSV template for fitting the latency model")
+    pm.add_argument("--gpus", default="RTX6000_ADA_48GB,RTX4000_ADA_20GB,RTX2000_ADA_16GB",
+                help="Comma-separated GPU names (must match scenario gpu.name strings)")
+    pm.add_argument("--seq-lens", default="128,256,512,1024", help="Comma-separated sequence lengths to sample")
+    pm.add_argument("--batches", default="1,2,4,8", help="Comma-separated batch sizes to sample")
+    pm.add_argument("--include-stages", action="store_true",
+                help="If set, output separate rows for prefill/decode; otherwise emit a single 'total' stage")
+    pm.add_argument("--out", default="results/microbench_template.csv", help="Output CSV path")
+    pm.set_defaults(func=cmd_microbench)
+
+    pf = sub.add_parser("fit-latency", help="Fit analytic latency model params from a microbench CSV")
+    pf.add_argument("--in", dest="input", required=True, help="Input microbench CSV")
+    pf.add_argument("--gpu", default=None, help="Optional GPU name filter (fit a single GPU only)")
+    pf.add_argument("--out", required=True, help="Output YAML path (fitted params)")
+    pf.set_defaults(func=cmd_fit_latency)
+
+    pc = sub.add_parser("compare-modes", help="Compare strict vs relaxed mode results and produce plots")
+    pc.add_argument("--relaxed", required=True, help="Path to relaxed index.csv OR a directory containing index.csv")
+    pc.add_argument("--strict", required=True, help="Path to strict index.csv OR a directory containing index.csv")
+    pc.add_argument("--out", default="results/figures", help="Output directory for comparison figures")
     pc.set_defaults(func=cmd_compare_modes)
 
     # lint-network

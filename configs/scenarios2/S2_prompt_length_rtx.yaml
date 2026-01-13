@@ -1,0 +1,57 @@
+scenario_id: S2_prompt_length_rtx
+workload:
+  num_requests: 80
+  prompt_tokens_dist:
+    128: 0.7
+    256: 0.3
+  max_new_tokens_dist:
+    128: 0.7
+    256: 0.3
+  kv_bytes_per_token: 4096
+nodes:
+  prefillE:
+    gpu:
+      name: RTX4000_ADA_20GB
+      vram_total_gb: 20
+      vram_free_gb: 16
+    tags:
+      tier: edge
+      role: prefill
+  decodeE:
+    gpu:
+      name: RTX4000_ADA_20GB
+      vram_total_gb: 20
+      vram_free_gb: 12
+    running_decode: 5
+    queued_decode: 2
+    tags:
+      tier: edge
+      role: decode
+  decodeC:
+    gpu:
+      name: RTX6000_ADA_48GB
+      vram_total_gb: 48
+      vram_free_gb: 34
+    running_decode: 2
+    queued_decode: 1
+    tags:
+      tier: cloud
+      role: decode
+network:
+  links:
+  - src: prefillE
+    dst: decodeE
+    bandwidth_Gbps: 10
+    rtt_ms: 2.0
+  - src: prefillE
+    dst: decodeC
+    bandwidth_Gbps: 2
+    rtt_ms: 25.0
+  - src: decodeE
+    dst: decodeC
+    bandwidth_Gbps: 2
+    rtt_ms: 25.0
+  - src: decodeC
+    dst: decodeE
+    bandwidth_Gbps: 2
+    rtt_ms: 25.0

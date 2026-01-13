@@ -1,0 +1,57 @@
+scenario_id: S6_hetero_gpu_rtx
+workload:
+  num_requests: 80
+  prompt_tokens_dist:
+    256: 0.5
+    512: 0.5
+  max_new_tokens_dist:
+    128: 0.5
+    256: 0.5
+  kv_bytes_per_token: 4096
+nodes:
+  prefillG:
+    gpu:
+      name: RTX6000_ADA_48GB
+      vram_total_gb: 48
+      vram_free_gb: 36
+    tags:
+      tier: cloud
+      role: prefill
+  decodeFast:
+    gpu:
+      name: RTX4000_ADA_20GB
+      vram_total_gb: 20
+      vram_free_gb: 14
+    running_decode: 4
+    queued_decode: 2
+    tags:
+      tier: cloud
+      role: decode
+  decodeSlow:
+    gpu:
+      name: RTX2000_ADA_16GB
+      vram_total_gb: 16
+      vram_free_gb: 10
+    running_decode: 4
+    queued_decode: 2
+    tags:
+      tier: cloud
+      role: decode
+network:
+  links:
+  - src: prefillG
+    dst: decodeFast
+    bandwidth_Gbps: 25
+    rtt_ms: 0.8
+  - src: prefillG
+    dst: decodeSlow
+    bandwidth_Gbps: 25
+    rtt_ms: 0.8
+  - src: decodeFast
+    dst: decodeSlow
+    bandwidth_Gbps: 10
+    rtt_ms: 1.2
+  - src: decodeSlow
+    dst: decodeFast
+    bandwidth_Gbps: 10
+    rtt_ms: 1.2

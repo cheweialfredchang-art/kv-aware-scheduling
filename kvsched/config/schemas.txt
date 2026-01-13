@@ -1,0 +1,71 @@
+from __future__ import annotations
+# 啟用「延遲型別註解」，可在型別尚未定義時先使用，亦可避免循環引用問題
+
+from pydantic import BaseModel, Field, ConfigDict
+# BaseModel：Pydantic 的資料模型基底類別
+# Field：用於宣告欄位的驗證規則與預設值
+# ConfigDict：Pydantic v2 用來設定模型行為的設定物件
+
+from typing import Dict, Any, Optional
+# Dict / Any：用於描述動態結構的設定欄位
+# Optional：表示欄位可為 None（本檔案中未實際使用）
+
+
+class ExperimentConfig(BaseModel):
+    """
+    單一實驗（Experiment）的設定模型
+    用於描述一個具體情境、排程器與執行參數
+    """
+
+    # 設定 Pydantic 模型行為：
+    # extra="forbid" 表示「不允許」傳入未宣告的欄位
+    model_config = ConfigDict(extra="forbid")
+
+    # 情境（Scenario）識別碼，必填，且長度至少為 1
+    scenario_id: str = Field(..., min_length=1)
+
+    # 排程器名稱，必填，且長度至少為 1
+    scheduler: str = Field(..., min_length=1)
+
+    # 隨機種子，用於實驗可重現性，預設為 0，且不可為負數
+    seed: int = Field(0, ge=0)
+
+    # 模擬或實驗執行的 tick 數（時間步數）
+    # 預設為 1000，且至少需為 1
+    ticks: int = Field(1000, ge=1)
+
+    # 工作負載設定（結構不固定，因此使用 Dict[str, Any]）
+    # default_factory=dict 可避免使用可變物件作為預設值的問題
+    workload: Dict[str, Any] = Field(default_factory=dict)
+
+    # 節點（Node）設定，例如節點數量、資源配置等
+    nodes: Dict[str, Any] = Field(default_factory=dict)
+
+    # 網路設定，例如拓撲、延遲、頻寬等
+    network: Dict[str, Any] = Field(default_factory=dict)
+
+    # 排程器額外參數設定，用於客製化不同 scheduler 的行為
+    scheduler_params: Dict[str, Any] = Field(default_factory=dict)
+
+
+class BatchConfig(BaseModel):
+    """
+    批次實驗（Batch）設定模型
+    用於一次性定義多個 scenario × scheduler × seed 的組合
+    """
+
+    # 同樣禁止未宣告的欄位
+    model_config = ConfigDict(extra="forbid")
+
+    # 情境清單（scenario ID 列表）
+    scenarios: list[str]
+
+    # 排程器清單（scheduler 名稱列表）
+    schedulers: list[str]
+
+    # 隨機種子列表
+    # 使用 lambda 建立預設值，避免可變物件共用
+    seeds: list[int] = Field(default_factory=lambda: [0, 1, 2])
+
+    # 每個實驗的 tick 數，預設為 1000
+    ticks: int = 1000

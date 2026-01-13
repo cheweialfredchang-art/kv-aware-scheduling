@@ -1,0 +1,96 @@
+scenario_id: S2_edge_cloud_rtx
+workload:
+  num_requests: 200
+nodes:
+  cloud_p0:
+    gpu:
+      name: RTX6000_ADA_48GB
+      vram_total_gb: 48
+      vram_free_gb: 34
+    running_prefill: 3
+    queued_prefill: 2
+    tags:
+      tier: cloud
+      role: prefill
+  cloud_d0:
+    gpu:
+      name: RTX4000_ADA_20GB
+      vram_total_gb: 20
+      vram_free_gb: 13
+    running_decode: 5
+    queued_decode: 5
+    tags:
+      tier: cloud
+      role: decode
+  edge_d0:
+    gpu:
+      name: RTX2000_ADA_16GB
+      vram_total_gb: 16
+      vram_free_gb: 9
+    running_decode: 3
+    queued_decode: 6
+    tags:
+      tier: edge
+      role: decode
+  edge_d1:
+    gpu:
+      name: RTX2000_ADA_16GB
+      vram_total_gb: 16
+      vram_free_gb: 8
+    running_decode: 2
+    queued_decode: 7
+    tags:
+      tier: edge
+      role: decode
+network:
+  default_util: 0.2
+  links:
+  - src: cloud_p0
+    dst: cloud_d0
+    bandwidth_Gbps: 100.0
+    rtt_ms: 0.4
+  - src: cloud_d0
+    dst: cloud_p0
+    bandwidth_Gbps: 100.0
+    rtt_ms: 0.4
+  - src: cloud_p0
+    dst: edge_d0
+    bandwidth_Gbps: 2.5
+    rtt_ms: 25.0
+  - src: edge_d0
+    dst: cloud_p0
+    bandwidth_Gbps: 2.5
+    rtt_ms: 25.0
+  - src: cloud_p0
+    dst: edge_d1
+    bandwidth_Gbps: 2.5
+    rtt_ms: 25.0
+  - src: edge_d1
+    dst: cloud_p0
+    bandwidth_Gbps: 2.5
+    rtt_ms: 25.0
+  - src: cloud_d0
+    dst: edge_d0
+    bandwidth_Gbps: 2.5
+    rtt_ms: 25.0
+  - src: edge_d0
+    dst: cloud_d0
+    bandwidth_Gbps: 2.5
+    rtt_ms: 25.0
+  - src: cloud_d0
+    dst: edge_d1
+    bandwidth_Gbps: 2.5
+    rtt_ms: 25.0
+  - src: edge_d1
+    dst: cloud_d0
+    bandwidth_Gbps: 2.5
+    rtt_ms: 25.0
+  - src: edge_d0
+    dst: edge_d1
+    bandwidth_Gbps: 10.0
+    rtt_ms: 2.0
+  - src: edge_d1
+    dst: edge_d0
+    bandwidth_Gbps: 10.0
+    rtt_ms: 2.0
+  util_by_pair: {}

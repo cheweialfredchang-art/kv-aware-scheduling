@@ -1,0 +1,57 @@
+scenario_id: S3_phase_ratio_rtx
+workload:
+  num_requests: 80
+  prompt_tokens_dist:
+    256: 0.5
+    512: 0.5
+  max_new_tokens_dist:
+    64: 0.7
+    128: 0.3
+  kv_bytes_per_token: 4096
+nodes:
+  prefillC:
+    gpu:
+      name: RTX6000_ADA_48GB
+      vram_total_gb: 48
+      vram_free_gb: 36
+    tags:
+      tier: cloud
+      role: prefill
+  decodeC1:
+    gpu:
+      name: RTX4000_ADA_20GB
+      vram_total_gb: 20
+      vram_free_gb: 14
+    running_decode: 3
+    queued_decode: 2
+    tags:
+      tier: cloud
+      role: decode
+  decodeC2:
+    gpu:
+      name: RTX2000_ADA_16GB
+      vram_total_gb: 16
+      vram_free_gb: 10
+    running_decode: 3
+    queued_decode: 2
+    tags:
+      tier: cloud
+      role: decode
+network:
+  links:
+  - src: prefillC
+    dst: decodeC1
+    bandwidth_Gbps: 25
+    rtt_ms: 0.8
+  - src: prefillC
+    dst: decodeC2
+    bandwidth_Gbps: 25
+    rtt_ms: 0.8
+  - src: decodeC1
+    dst: decodeC2
+    bandwidth_Gbps: 10
+    rtt_ms: 1.2
+  - src: decodeC2
+    dst: decodeC1
+    bandwidth_Gbps: 10
+    rtt_ms: 1.2

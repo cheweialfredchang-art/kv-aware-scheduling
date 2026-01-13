@@ -1,0 +1,55 @@
+scenario_id: S4_network_scan_rtx
+workload:
+  num_requests: 80
+  prompt_tokens_dist:
+    512: 1.0
+  max_new_tokens_dist:
+    256: 1.0
+  kv_bytes_per_token: 8192
+nodes:
+  prefillX:
+    gpu:
+      name: RTX2000_ADA_16GB
+      vram_total_gb: 16
+      vram_free_gb: 12
+    tags:
+      tier: edge
+      role: prefill
+  decodeX:
+    gpu:
+      name: RTX2000_ADA_16GB
+      vram_total_gb: 16
+      vram_free_gb: 10
+    running_decode: 4
+    queued_decode: 2
+    tags:
+      tier: edge
+      role: decode
+  decodeY:
+    gpu:
+      name: RTX6000_ADA_48GB
+      vram_total_gb: 48
+      vram_free_gb: 34
+    running_decode: 2
+    queued_decode: 1
+    tags:
+      tier: cloud
+      role: decode
+network:
+  links:
+  - src: prefillX
+    dst: decodeX
+    bandwidth_Gbps: 10
+    rtt_ms: 3.0
+  - src: prefillX
+    dst: decodeY
+    bandwidth_Gbps: 1.5
+    rtt_ms: 35.0
+  - src: decodeX
+    dst: decodeY
+    bandwidth_Gbps: 1.5
+    rtt_ms: 35.0
+  - src: decodeY
+    dst: decodeX
+    bandwidth_Gbps: 1.5
+    rtt_ms: 35.0

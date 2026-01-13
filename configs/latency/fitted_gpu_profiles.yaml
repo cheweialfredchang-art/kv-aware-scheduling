@@ -1,0 +1,19 @@
+gpu_profiles:
+  RTX6000_ADA_48GB:
+    alpha_ms: 0.0
+    beta_ms_per_token: 0.0
+    gamma_ms_per_batch: 1.0
+    rmse_ms: 0.0
+    n: 32
+  RTX4000_ADA_20GB:
+    alpha_ms: 0.0
+    beta_ms_per_token: 0.0
+    gamma_ms_per_batch: 1.0
+    rmse_ms: 0.0
+    n: 32
+  RTX2000_ADA_16GB:
+    alpha_ms: 0.0
+    beta_ms_per_token: 0.0
+    gamma_ms_per_batch: 1.0
+    rmse_ms: 0.0
+    n: 32

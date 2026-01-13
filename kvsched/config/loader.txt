@@ -1,0 +1,59 @@
+from __future__ import annotations
+# 啟用延遲型別註解（Postponed Evaluation of Annotations）
+# 可避免循環引用問題，並讓型別註解在執行期更具彈性
+
+import yaml
+# 用於讀取與解析 YAML 設定檔
+
+from pathlib import Path
+# Path 提供跨平台、安全且物件導向的檔案路徑操作方式
+
+from typing import Any, Dict
+# Any：表示值型別不固定
+# Dict：用於描述設定檔常見的 key-value 結構
+
+
+def load_yaml(path: str | Path) -> Dict[str, Any]:
+    """
+    讀取 YAML 檔案並轉換為 dict
+
+    :param path: YAML 檔案路徑（字串或 Path 物件）
+    :return: 解析後的設定內容；若檔案為空則回傳空 dict
+    """
+
+    # 將輸入轉為 Path 物件，確保後續操作一致
+    p = Path(path)
+
+    # 以 UTF-8 編碼開啟檔案並讀取內容
+    with p.open("r", encoding="utf-8") as f:
+        # yaml.safe_load 會將 YAML 內容轉為 Python 資料結構
+        # 若檔案為空或內容為 None，則回傳空 dict，避免後續 None 判斷
+        return yaml.safe_load(f) or {}
+
+
+def deep_merge(a: Dict[str, Any], b: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    深層合併兩個 dict（遞迴合併巢狀結構）
+
+    合併規則：
+    - 若 key 在 a、b 中皆存在，且對應的 value 皆為 dict，則遞迴合併
+    - 其他情況下，使用 b 的值覆蓋 a
+
+    :param a: 基底設定（通常為預設值）
+    :param b: 覆寫設定（通常為使用者或環境設定）
+    :return: 合併後的新 dict（不會修改原始 a、b）
+    """
+
+    # 先複製 a，避免直接修改原始輸入（確保純函式行為）
+    out = dict(a)
+
+    # 逐一處理 b 中的每個 key-value
+    for k, v in b.items():
+        # 若 a、b 對應的值皆為 dict，則進行遞迴合併
+        if isinstance(v, dict) and isinstance(out.get(k), dict):
+            out[k] = deep_merge(out[k], v)
+        else:
+            # 否則直接以 b 的值覆蓋 a
+            out[k] = v
+
+    return out
